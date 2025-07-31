@@ -1,0 +1,10 @@
+.env
+.idea/
+data/
+postgres-data/
+rabbitmq-data/
+.env
+.idea/
+data/
+postgres-data/
+rabbitmq-data/
