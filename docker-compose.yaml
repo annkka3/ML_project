@@ -37,14 +37,14 @@ services:
       - ml-network
 
   rabbitmq:
-    image: rabbitmq:3.12
+    image: rabbitmq:3.12-management
     container_name: rabbitmq
     restart: on-failure
     ports:
       - "5672:5672"
       - "15672:15672"
     volumes:
-      - ./rabbitmq_volume:/var/lib/rabbitmq
+      - rabbitmq_volume:/var/lib/rabbitmq
     networks:
       - ml-network
 
