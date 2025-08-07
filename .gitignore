@@ -1,0 +1,15 @@
+app/.env
+.idea/
+data/postgres-data/
+data/rabbitmq-data/
+data
+cd
+__pycache__/
+*.py[codz]
+
+
+*.pyc
+*.sqlite3
+*.log
+*.db
+
