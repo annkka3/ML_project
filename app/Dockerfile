@@ -1,6 +1,4 @@
-
 FROM python:3.12-slim
-
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -13,6 +11,10 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+# Скачать модель заранее
+RUN python -c "from transformers import pipeline; pipeline('translation', model='Helsinki-NLP/opus-mt-en-fr')"
+RUN python -c "from transformers import pipeline; pipeline('translation', model='Helsinki-NLP/opus-mt-fr-en')"
 
 COPY . .
 

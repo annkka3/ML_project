@@ -16,7 +16,7 @@ class User(Base):
 
     # Связи
     wallet: Mapped["Wallet"] = relationship(
-        "Wallet", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "Wallet", back_populates="user", uselist=False, lazy="selectin", cascade="all, delete-orphan"
     )
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction", back_populates="user", cascade="all, delete-orphan"
@@ -24,6 +24,7 @@ class User(Base):
     translations: Mapped[list["Translation"]] = relationship(
         "Translation", back_populates="user", cascade="all, delete-orphan"
     )
+    
 
     @classmethod
     def create_instance(cls, id: str, email: str, password: str, is_admin: bool = False, initial_balance: int = 0):

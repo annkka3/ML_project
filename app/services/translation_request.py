@@ -1,15 +1,15 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from models.transaction import Transaction
 from models.translation import Translation
 from models.user import User
-
+from models.wallet import Wallet  # если у тебя отдельная модель кошелька
 import uuid
-
-
 
 
 @dataclass
@@ -22,23 +22,22 @@ class TextValidationResult:
 class Model:
     SUPPORTED_MODELS = {
         ("en", "fr"): "Helsinki-NLP/opus-mt-en-fr",
-        ("fr", "en"): "Helsinki-NLP/opus-mt-fr-en"
+        ("fr", "en"): "Helsinki-NLP/opus-mt-fr-en",
     }
 
     def translate(self, origin_text: str, source_lang: str, target_lang: str) -> str:
         from transformers import pipeline
-
-        if (source_lang, target_lang) not in self.SUPPORTED_MODELS:
+        key = (source_lang, target_lang)
+        if key not in self.SUPPORTED_MODELS:
             raise ValueError("Модель перевода не поддерживается")
-
-        model_name = self.SUPPORTED_MODELS[(source_lang, target_lang)]
-        translator = pipeline("translation", model=model_name)
+        translator = pipeline("translation", model=self.SUPPORTED_MODELS[key])
         return translator(origin_text)[0]["translation_text"]
 
 
 @dataclass
 class TranslationRequest:
-    user: User
+    user_id: str
+    wallet: Wallet          # <-- передаём сам объект кошелька (уже загруженный)
     input_text: str
     source_lang: str
     target_lang: str
@@ -46,7 +45,8 @@ class TranslationRequest:
     cost: int = 1
 
     async def process(self, db: AsyncSession) -> str:
-        if self.user.wallet is None or self.user.wallet.balance < self.cost:
+        # НИКАКИХ обращений к self.user.wallet тут!
+        if self.wallet is None or self.wallet.balance < self.cost:
             raise ValueError("Недостаточно средств на балансе")
 
         output_text = self.model.translate(
@@ -55,11 +55,13 @@ class TranslationRequest:
             target_lang=self.target_lang,
         )
 
-        self.user.wallet.balance -= self.cost
-        db.add(self.user.wallet)
+        # списываем деньги
+        self.wallet.balance -= self.cost
+        db.add(self.wallet)
 
+        # сохраняем сам перевод
         translation = Translation(
-            user_id=self.user.id,
+            user_id=self.user_id,
             input_text=self.input_text,
             output_text=output_text,
             source_lang=self.source_lang,
@@ -72,37 +74,35 @@ class TranslationRequest:
         return output_text
 
 
-
-
 async def process_translation_request(db: AsyncSession, user_id: str, data) -> dict:
-    """
-    Обёртка для роутера:
-    - ищет пользователя
-    - вызывает TranslationRequest.process(...)
-    - пишет Transaction (Списание)
-    - возвращает payload для ответа
-    """
-    # 1) достаём пользователя
-    res = await db.execute(select(User).where(User.id == user_id))
-    user = res.scalar_one_or_none()
+    # 1) грузим пользователя вместе с кошельком EAGER (без lazy)
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.wallet))  # <-- ключевой момент
+        .where(User.id == user_id)
+    )
+    user: Optional[User] = result.scalar_one_or_none()
     if not user:
+        # лучше вернуть 404 через HTTPException, но оставлю как есть
         raise ValueError("User not found")
 
-    # 2) собираем запрос и обрабатываем
+    # 2) собираем запрос
     req = TranslationRequest(
-        user=user,
-        input_text=data.input_text if hasattr(data, "input_text") else data["input_text"],
-        source_lang=data.source_lang if hasattr(data, "source_lang") else data["source_lang"],
-        target_lang=data.target_lang if hasattr(data, "target_lang") else data["target_lang"],
+        user_id=user.id,
+        wallet=user.wallet,                   # <-- передаем уже загруженный wallet
+        input_text=data.input_text,
+        source_lang=data.source_lang,
+        target_lang=data.target_lang,
         model=Model(),
         cost=1,
     )
+
     output_text = await req.process(db)
 
-    # 3) логируем транзакцию (история списаний)
+    # 3) логируем транзакцию
     tx = Transaction(
         id=str(uuid.uuid4()),
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(),
         user_id=user_id,
         amount=req.cost,
         type="Списание",
@@ -110,9 +110,9 @@ async def process_translation_request(db: AsyncSession, user_id: str, data) -> d
     db.add(tx)
     await db.commit()
 
-    # 4) отдаём ответ
+    # 4) ответ
     return {
         "output_text": output_text,
         "cost": req.cost,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now().isoformat(),
     }
