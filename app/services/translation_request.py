@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from models.transaction import Transaction
 from models.translation import Translation
 from models.user import User
-from models.wallet import Wallet  # если у тебя отдельная модель кошелька
+from models.wallet import Wallet
 import uuid
 
 
@@ -37,7 +37,7 @@ class Model:
 @dataclass
 class TranslationRequest:
     user_id: str
-    wallet: Wallet          # <-- передаём сам объект кошелька (уже загруженный)
+    wallet: Wallet
     input_text: str
     source_lang: str
     target_lang: str
@@ -77,7 +77,7 @@ async def process_translation_request(db: AsyncSession, user_id: str, data) -> d
     # 1) грузим пользователя вместе с кошельком
     result = await db.execute(
         select(User)
-        .options(selectinload(User.wallet))  # <-- ключевой момент
+        .options(selectinload(User.wallet))
         .where(User.id == user_id)
     )
     user: Optional[User] = result.scalar_one_or_none()
