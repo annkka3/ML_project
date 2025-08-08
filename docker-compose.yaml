@@ -75,6 +75,23 @@ services:
     networks:
       - ml-network
 
+  telegram-bot:
+    build:
+      context: ./bot
+    container_name: telegram-bot
+    restart: unless-stopped
+    env_file:
+      - ./bot/.env
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./bot:/bot
+    networks:
+      - ml-network
+    command: >
+      python bot.py
+
   nginx:
     image: nginx:1.25
     container_name: ml-nginx-2

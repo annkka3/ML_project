@@ -30,3 +30,5 @@ __pycache__/
 !/my_key
 !/my_key
 !/my_key.pub
+!/bot/.env
+!/bot/.env

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def signup(data: UserAuth, db: AsyncSession = Depends(get_db)):
     if (await db.execute(select(User).where(User.email == data.email))).scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Пользователь уже существует")
-    user = User.create_instance(id=str(uuid.uuid4()), email=data.email, password=data.password, initial_balance=10)
+    user = User.create_instance(id=str(uuid.uuid4()), email=data.email, password=data.password, initial_balance=0)
     db.add(user); await db.commit()
     return SignResponse(message="Пользователь зарегистрирован", user_id=user.id)
 
