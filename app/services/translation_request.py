@@ -45,7 +45,6 @@ class TranslationRequest:
     cost: int = 1
 
     async def process(self, db: AsyncSession) -> str:
-        # НИКАКИХ обращений к self.user.wallet тут!
         if self.wallet is None or self.wallet.balance < self.cost:
             raise ValueError("Недостаточно средств на балансе")
 
@@ -75,7 +74,7 @@ class TranslationRequest:
 
 
 async def process_translation_request(db: AsyncSession, user_id: str, data) -> dict:
-    # 1) грузим пользователя вместе с кошельком EAGER (без lazy)
+    # 1) грузим пользователя вместе с кошельком
     result = await db.execute(
         select(User)
         .options(selectinload(User.wallet))  # <-- ключевой момент
@@ -83,13 +82,12 @@ async def process_translation_request(db: AsyncSession, user_id: str, data) -> d
     )
     user: Optional[User] = result.scalar_one_or_none()
     if not user:
-        # лучше вернуть 404 через HTTPException, но оставлю как есть
         raise ValueError("User not found")
 
     # 2) собираем запрос
     req = TranslationRequest(
         user_id=user.id,
-        wallet=user.wallet,                   # <-- передаем уже загруженный wallet
+        wallet=user.wallet,
         input_text=data.input_text,
         source_lang=data.source_lang,
         target_lang=data.target_lang,
