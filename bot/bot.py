@@ -19,9 +19,8 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 API_URL = os.getenv("API_URL", "").strip()
 API_USER_ID = os.getenv("API_USER_ID", "").strip()
 
-# Нормализуем URL: нужен конечный слэш и сам путь /translate/
+
 if API_URL:
-    # если дали базу типа http://ml-api-2:8080 — добавим путь
     if "/translate" not in API_URL:
         API_URL = API_URL.rstrip("/") + "/translate/"
     else:

@@ -26,6 +26,9 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 30s
@@ -43,8 +46,7 @@ services:
     image: ml-api:1.0
     container_name: ml-api-2
     restart: unless-stopped
-    env_file:
-      - ./app/.env
+    env_file: "./app/.env"
     environment:
       HF_HOME: /opt/hf-cache
       TRANSFORMERS_CACHE: /opt/hf-cache
@@ -71,13 +73,33 @@ services:
     networks:
       - ml-network
 
+  worker:
+    build:
+      context: ./worker
+    image: ml-worker:1.0
+    restart: unless-stopped
+    env_file: "./worker/.env"
+    environment:
+      PYTHONPATH: /app_src
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+    volumes:
+      - hf-cache:/opt/hf-cache
+      - ./app:/app_src:ro   # чтобы импортировать app/services/*
+    networks:
+      - ml-network
+    command: >
+      python worker.py
+
   telegram-bot:
     build:
       context: ./bot
     container_name: telegram-bot
     restart: unless-stopped
-    env_file:
-      - ./bot/.env
+    env_file: "./bot/.env"
     depends_on:
       app:
         condition: service_healthy

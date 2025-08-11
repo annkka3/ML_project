@@ -33,3 +33,4 @@ __pycache__/
 !/bot/.env
 !/bot/.env
 !/bot/.env
+!/worker/.env
