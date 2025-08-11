@@ -24,7 +24,7 @@ class User(Base):
     translations: Mapped[list["Translation"]] = relationship(
         "Translation", back_populates="user", cascade="all, delete-orphan"
     )
-    
+
 
     @classmethod
     def create_instance(cls, id: str, email: str, password: str, is_admin: bool = False, initial_balance: int = 0):
@@ -41,3 +41,7 @@ class User(Base):
 
     def check_password(self, password: str) -> bool:
         return PasswordHasher.check(password, self._password_hash)
+
+    @property
+    def password_hash(self) -> str:
+        return self._password_hash

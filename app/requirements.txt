@@ -12,4 +12,8 @@ transformers==4.40.1
 email-validator==2.2.0
 aiogram==3.5.0
 aiohttp==3.9.5
+passlib[bcrypt]==1.7.4
+sacremoses==0.1.1
+python-jose==3.3.0
+python-multipart==0.0.9
 

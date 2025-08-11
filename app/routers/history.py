@@ -1,55 +1,59 @@
-from typing import List, Optional
-from pydantic import BaseModel
-from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import get_db
-from deps import require_user_id
-from models.translation import Translation
+from deps_auth import get_current_user
+from models.user import User
 from models.transaction import Transaction
+from models.translation import Translation
+from schemas.classes import TranslationItem, TransactionItem
+
+router = APIRouter(prefix="/history", tags=["history"])
 
 
-
-router = APIRouter(prefix="/history", tags=["History"])
-
-class TranslationItem(BaseModel):
-    id: str
-    timestamp: datetime
-    input_text: str
-    output_text: str
-    source_lang: str
-    target_lang: str
-    cost: int
-    class Config: from_attributes = True
-
-@router.get("/translations", response_model=List[TranslationItem])
-async def list_translations(db: AsyncSession = Depends(get_db), user_id: str = Depends(require_user_id)):
-    q = await db.execute(select(Translation).where(Translation.user_id == user_id).order_by(Translation.timestamp.desc()))
-    return q.scalars().all()
-
-class TransactionItem(BaseModel):
-    id: str
-    timestamp: datetime
-    amount: int
-    type: str
-    class Config:
-        from_attributes = True
-
-@router.get("/transactions", response_model=List[TransactionItem])
-async def list_transactions(
+@router.get("/translations", response_model=list[TranslationItem])
+async def list_translations(
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(require_user_id),
-    tx_type: Optional[str] = Query(default=None, description="Фильтр по типу: 'Пополнение' или 'Списание'"),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Transaction).where(Transaction.user_id == user_id)
-    if tx_type:
-        stmt = stmt.where(Transaction.type == tx_type)
-    stmt = stmt.order_by(Transaction.timestamp.desc()).limit(limit).offset(offset)
+    """
+    История переводов текущего пользователя.
+    По умолчанию — последние 100 записей.
+    """
+    stmt = (
+        select(Translation)
+        .where(Translation.user_id == current_user.id)
+        .order_by(desc(Translation.timestamp))
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return items
 
-    res = await db.execute(stmt)
-    return res.scalars().all()
+
+@router.get("/transactions", response_model=list[TransactionItem])
+async def list_transactions(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    История транзакций кошелька текущего пользователя.
+    По умолчанию — последние 100 записей.
+    """
+    stmt = (
+        select(Transaction)
+        .where(Transaction.user_id == current_user.id)
+        .order_by(desc(Transaction.timestamp))
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return items

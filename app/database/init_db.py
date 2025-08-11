@@ -1,6 +1,6 @@
-# init_db.py
+
 import asyncio
-from database import engine, Base, async_session
+from database.database import engine, Base, async_session
 from models.user import User
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select

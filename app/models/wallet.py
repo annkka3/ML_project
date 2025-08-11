@@ -14,3 +14,4 @@ class Wallet(Base):
 
     def __repr__(self):
         return f"<Wallet(user_id={self.user_id}, balance={self.balance})>"
+

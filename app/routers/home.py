@@ -5,7 +5,7 @@ router = APIRouter(tags=["Home"])
 
 @router.get("/", response_model=Dict[str, str])
 async def index() -> Dict[str, str]:
-    return {"message": "Добро пожаловать в сервис по переводу с английского на французский и наоборот"}
+    return {"message": "Welcome to translation service..."}
 
 @router.get("/health", response_model=Dict[str, str])
 async def health() -> Dict[str, str]:
