@@ -1,47 +1,54 @@
-
-import os
+# app/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
-from routers import auth, translate, wallet, history
-from database.init_db import init as init_db
+from app.api.routers import auth, translate, wallet, history
+from app.infrastructure.db.init_db import init as init_db
+from app.infrastructure.db.config import get_settings
+from app.presentation.web.router import router as web_router
+from app.presentation.web import web
 
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-INIT_DB_ON_START = os.getenv("INIT_DB_ON_START", "False").lower() == "true"
+settings = get_settings()
 
-app = FastAPI(title=os.getenv("APP_NAME", "ML_API"))
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.DEBUG and getattr(settings, "INIT_DB_ON_START", False):
+        await init_db()
+    yield
+
+
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    lifespan=lifespan,
+)
+
+# статика (папка web/static)
+STATIC_DIR = Path(__file__).resolve().parent / "presentation" / "web" / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ALLOW_ORIGINS", "*").split(","),
+    allow_origins=str(getattr(settings, "CORS_ALLOW_ORIGINS", "*")).split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def on_startup() -> None:
-    """
-    ⚠️ init_db чистит БД и создаёт демо‑пользователей.
-    Запускаем только в DEV и если явно разрешено.
-    """
-    if DEBUG and INIT_DB_ON_START:
-        await init_db()
-
+# роуты
 app.include_router(auth.router)
 app.include_router(translate.router)
 app.include_router(wallet.router)
 app.include_router(history.router)
+app.include_router(web_router)
+
 
 @app.get("/health")
 async def healthcheck() -> dict:
     return {"status": "ok"}
 
-@app.get("/")
-async def root() -> dict:
-    return {
-        "app": os.getenv("APP_NAME", "ML_API"),
-        "version": os.getenv("API_VERSION", "v1"),
-        "debug": DEBUG,
-    }

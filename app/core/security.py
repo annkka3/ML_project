@@ -5,7 +5,7 @@ from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import HTTPException, status
 
-from database.config import get_settings
+from app.infrastructure.db.config import get_settings
 
 
 _settings = get_settings()
