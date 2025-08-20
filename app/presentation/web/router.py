@@ -4,9 +4,11 @@ import httpx
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pathlib import Path
 
 # Папка с шаблонами
-templates = Jinja2Templates(directory="app/presentation/web/templates")
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter(prefix="/web", tags=["web"])
 
@@ -31,7 +33,6 @@ async def login_page(request: Request):
 
 @router.post("/login")
 async def login_submit(request: Request, email: str = Form(...), password: str = Form(...)):
-    # Подстрой пути под свой роут авторизации, если он отличается
     async with httpx.AsyncClient(base_url=API_BASE, timeout=10.0) as client:
         resp = await client.post("/auth/login", json={"email": email, "password": password})
     if resp.status_code != 200:
@@ -42,7 +43,6 @@ async def login_submit(request: Request, email: str = Form(...), password: str =
         return templates.TemplateResponse("login.html", {"request": request, "error": "Не получен токен"}, status_code=400)
 
     r = RedirectResponse(url="/web/dashboard", status_code=302)
-    # httponly, чтобы JS не трогал токен
     r.set_cookie("access_token", token, httponly=True, secure=False)  # secure=True в проде на HTTPS
     return r
 
@@ -56,7 +56,6 @@ async def register_submit(request: Request, email: str = Form(...), password: st
         resp = await client.post("/auth/register", json={"email": email, "password": password})
     if resp.status_code != 201 and resp.status_code != 200:
         return templates.TemplateResponse("register.html", {"request": request, "error": "Регистрация не удалась"}, status_code=400)
-    # после регистрации сразу логинимся
     return await login_submit(request, email=email, password=password)
 
 @router.get("/logout")
@@ -74,16 +73,23 @@ async def dashboard(request: Request):
 
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(base_url=API_BASE, timeout=10.0, headers=headers) as client:
-        # подстрой пути под свои роуты, если отличаются
         balance_resp = await client.get("/wallet/balance")
         hist_resp = await client.get("/history")
+        txns_resp = await client.get("/history/transactions")
 
     balance = balance_resp.json().get("balance") if balance_resp.status_code == 200 else "—"
     history = hist_resp.json() if hist_resp.status_code == 200 else []
+    txns = txns_resp.json() if txns_resp.status_code == 200 else []
 
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "balance": balance, "history": history, "error": None, "result": None},
+        {"request": request,
+         "balance": balance,
+         "history": history,
+         "txns": txns,
+         "header_balance": balance,
+         "error": None,
+         "result": None},
     )
 
 @router.post("/translate", response_class=HTMLResponse)
@@ -121,13 +127,43 @@ async def topup_submit(request: Request, amount: float = Form(...)):
 
         balance_resp = await client.get("/wallet/balance")
         hist_resp = await client.get("/history")
+        txns_resp = await client.get("/history/transactions")
 
     ok = resp.status_code in (200, 201)
     balance = balance_resp.json().get("balance") if balance_resp.status_code == 200 else "—"
     history = hist_resp.json() if hist_resp.status_code == 200 else []
+    txns = txns_resp.json() if txns_resp.status_code == 200 else []
     error = None if ok else "Пополнение не удалось"
 
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "balance": balance, "history": history, "error": error, "result": None},
+        {"request": request,
+         "balance": balance,
+         "history": history,
+         "txns": txns,
+         "header_balance": balance,
+         "error": error,
+         "result": None},
+    )
+
+@router.get("/transactions", response_class=HTMLResponse)
+async def page_transactions(request: Request):
+    token = await _get_token_from_cookie(request)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+
+    async with httpx.AsyncClient(base_url=API_BASE, headers=headers, timeout=10) as client:
+        bal_resp = await client.get("/wallet/balance")
+        tx_resp = await client.get("/history/transactions")
+
+    transactions = tx_resp.json() if tx_resp.status_code == 200 else []
+    header_balance = bal_resp.json().get("balance") if bal_resp.status_code == 200 else None
+
+    return templates.TemplateResponse(
+        "transactions.html",
+        {
+            "request": request,
+            "transactions": transactions,
+            "title": "История операций",
+            "header_balance": header_balance,
+        },
     )

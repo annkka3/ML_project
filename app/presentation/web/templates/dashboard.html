@@ -53,5 +53,35 @@
   {% endif %}
 </section>
 
+<!-- 👇 вставляем сюда новую карточку -->
+<section class="card">
+  <h3>История операций</h3>
+  {% if txns and txns|length > 0 %}
+    <table class="table small">
+      <thead><tr><th>#</th><th>Время</th><th>Тип</th><th>Сумма</th></tr></thead>
+      <tbody>
+      {% for t in txns[:10] %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ t.timestamp or t.created_at }}</td>
+          <td>
+            {% set ttype = (t.type or '') | lower %}
+            {% if ttype in ['topup', 'пополнение'] %}Пополнение
+            {% elif ttype in ['debit', 'списание'] %}Списание
+            {% else %}{{ t.type }}{% endif %}
+          </td>
+          <td>{{ t.amount }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p><a href="/web/transactions">Смотреть все →</a></p>
+  {% else %}
+    <p>Нет операций.</p>
+  {% endif %}
+</section>
+<!-- ☝️ конец вставки -->
+
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% endblock %}
+
